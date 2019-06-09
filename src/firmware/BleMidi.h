@@ -1,0 +1,41 @@
+#ifndef __BLE_MIDI_H__
+#define __BLE_MIDI_H__
+
+#include <BLEDevice.h>
+#include <BLEUtils.h>
+#include <BLEServer.h>
+#include <BLE2902.h>
+
+#define MIDI_SERVICE_UUID           "03b80e5a-ede8-4b33-a751-6ce34ec4c700"
+#define MIDI_CHARACTERISTIC_UUID    "7772e5db-3868-4112-a1a9-f2669d106bf3"
+#define DEFAULT_DEVICE_NAME         "ESP32_BLE_MIDI"
+#define IDX_BUFFER_CHANNEL          (2)
+#define IDX_BUFFER_NOTE             (3)
+#define IDX_BUFFER_VELOCITY         (4)
+#define MIDI_BUFFER_LENGTH          (5)
+#define DEFAULT_NOTE_ON_VELOCITY    (127)
+
+typedef void (*ConnectionCallback_t)(bool);
+
+class BleMidi {
+public:
+    BleMidi();
+    void registerCallback(ConnectionCallback_t callback);
+    void begin();
+    void begin(std::string device_name);
+    bool isConnected();
+    void noteOn(uint8_t channel, uint8_t note);
+    void noteOn(uint8_t channel, uint8_t note, uint8_t velocity);
+    void noteOff(uint8_t channel, uint8_t note);
+
+private:
+    uint8_t maskChannel(uint8_t channel) { return (channel & 0x0f) | 0x90; }
+    uint8_t maskNote(uint8_t note) { return note & 0x7f; }
+    uint8_t maskVelocity(uint8_t velocity) { return velocity & 0x7f; }
+    void notify();
+
+    BLECharacteristic *characteristic_;
+    uint8_t buffer_[MIDI_BUFFER_LENGTH] = {0x80, 0x80, 0x00, 0x00, 0x00};
+};
+
+#endif //__BLE_MIDI_H__

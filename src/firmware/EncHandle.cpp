@@ -22,6 +22,7 @@ void EncHandle::loop() {
     if (current != enc_a_prev_ && current == enc_a_pin_check_) {
         if (digitalRead(enc_b_pin_) == enc_b_pin_check_) {
             counter_++;
+            last_tick_millis_ = millis();
         } else {
             counter_--;
         }

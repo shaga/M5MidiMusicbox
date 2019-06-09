@@ -11,6 +11,7 @@ public:
 
 private:
     
+    uint32_t last_tick_millis_;
     int counter_;
     int enc_a_prev_;
     int enc_a_pin_;

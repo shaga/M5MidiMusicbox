@@ -17,6 +17,7 @@ EncHandle encoderHandle(PinEncA, PinEncB);
 
 // エンコーダイベントキュー
 static QueueHandle_t handleEventQueue;
+static QueueHandle_t handleQueueFadeOut;
 static TimerHandle_t handleTimerNoteOff;
 static SemaphoreHandle_t handleSemNoteOff;
 
@@ -42,7 +43,7 @@ static const MusicInfo_t Musics[] {
 // 演奏曲数
 static const int MusicCount = 3;
 
-static const int AutoNoteOffTicks = 1200 / portTICK_RATE_MS;
+static const int AutoNoteOffTicks = 150 / portTICK_RATE_MS;
 
 volatile bool isNoteOn = false;
 
@@ -59,23 +60,47 @@ static void noteOffLast(const MusicInfo_t *music) {
   isNoteOn = false;
 }
 
-static void timerNoteOff(TimerHandle_t handle) {
-  if (xSemaphoreTake(handleSemNoteOff, 10 / portTICK_RATE_MS) == pdTRUE) {
-    const MusicInfo_t* selected = &Musics[selected_music_idx];
-    noteOffLast(selected);
-    xSemaphoreGive(handleSemNoteOff);
+static void taskFadeOut(void *params) {
+  uint32_t v;
+  while(1) {
+    portBASE_TYPE res = xQueueReceive(handleQueueFadeOut, &v, 10 / portTICK_PERIOD_MS);
+    if (res != pdTRUE) continue;
+    if (xSemaphoreTake(handleSemNoteOff, 10 / portTICK_RATE_MS) == pdTRUE) {
+      if (ble_midi.fadeOut(1)) {
+        const MusicInfo_t* current = &Musics[selected_music_idx];
+        noteOffLast(current);
+        xTimerStop(handleTimerNoteOff, 0);
+      }
+      xSemaphoreGive(handleSemNoteOff);
+    }
   }
+}
+
+static void timerNoteOff(TimerHandle_t handle) {
+    portBASE_TYPE HPTaskAwoken = pdFALSE;
+    uint32_t v = 0;
+    xQueueSend(handleQueueFadeOut, &v, 10 / portTICK_RATE_MS);
+//
+//  if (xSemaphoreTake(handleSemNoteOff, 10 / portTICK_RATE_MS) == pdTRUE) {
+//    if (ble_midi.fadeOut(1)) {
+//      const MusicInfo_t* current = &Musics[selected_music_idx];
+//      noteOffLast(current);
+//      xTimerStop(handleTimerNoteOff, 0);
+//    }
+//    xSemaphoreGive(handleSemNoteOff);
+//  }
 }
 
 // イベントキュー初期化
 static void initQueue() {
   handleEventQueue = xQueueCreate(10, sizeof(uint32_t));
+  handleQueueFadeOut = xQueueCreate(10, sizeof(uint32_t));
 }
 
 static void initTimerNoteOff() {
   handleSemNoteOff = xSemaphoreCreateBinary();
   xSemaphoreGive(handleSemNoteOff);
-  handleTimerNoteOff = xTimerCreate("note_off_timer", AutoNoteOffTicks, pdFALSE, NULL, timerNoteOff);
+  handleTimerNoteOff = xTimerCreate("note_off_timer", AutoNoteOffTicks, pdTRUE, NULL, timerNoteOff);
 }
 
 // BLE接続待ちメッセージ表示
@@ -186,6 +211,7 @@ void setup() {
   ble_midi.begin();
 
   xTaskCreate(playMusic, "playMusic", 4096, NULL, 1, NULL);
+  xTaskCreate(taskFadeOut, "fadeOut", 4096, NULL, 2, NULL);
   encoderHandle.begin(handleEventQueue);
   Serial.println("start");
 }

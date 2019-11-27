@@ -28,6 +28,7 @@ public:
 BleMidi::BleMidi() {
     characteristic_ = NULL;
     connection_callback = NULL;
+    velocity_ = 0;
 }
 
 void BleMidi::registerCallback(ConnectionCallback_t callback) {
@@ -73,22 +74,22 @@ bool BleMidi::isConnected() {
 void BleMidi::noteOn(uint8_t channel, uint8_t note) {
     if (!is_connected) return;
 
-    buffer_[IDX_BUFFER_CHANNEL] = maskChannel(channel);
+    buffer_[IDX_BUFFER_CHANNEL] = maskChannelNoteOn(channel);
     buffer_[IDX_BUFFER_NOTE] = maskNote(note);
     buffer_[IDX_BUFFER_VELOCITY] = maskVelocity(DEFAULT_NOTE_ON_VELOCITY);
-
-    notify(5);
+    velocity_ = DEFAULT_NOTE_ON_VELOCITY;
+    notify(NOTE_ON_1_NOTE);
 }
 
 void BleMidi::noteOn(uint8_t channel, const NoteData_t *note) {
   if(!is_connected) return;
 
   for (int i = 0; i < note->size && i < MAX_NOTE_COUNT; i++) {
-    buffer_[IDX_BUFFER_CHANNEL + MIDI_NOTE_SIZE*i] = maskChannel(channel);
+    buffer_[IDX_BUFFER_CHANNEL + MIDI_NOTE_SIZE*i] = maskChannelNoteOn(channel);
     buffer_[IDX_BUFFER_NOTE + MIDI_NOTE_SIZE*i] = maskNote(note->value[i]);
     buffer_[IDX_BUFFER_VELOCITY + MIDI_NOTE_SIZE*i] = maskVelocity(DEFAULT_NOTE_ON_VELOCITY);
   }
-
+  velocity_ = DEFAULT_NOTE_ON_VELOCITY;
   int send_size = MIDI_HEADER_SIZE + MIDI_NOTE_SIZE * note->size;
   if (send_size > MIDI_BUFFER_LENGTH) send_size = MIDI_BUFFER_LENGTH;
   notify(send_size);
@@ -99,13 +100,14 @@ void BleMidi::noteOff(uint8_t channel, const NoteData_t *note) {
   if(!is_connected) return;
 
   for (int i = 0; i < note->size && i < MAX_NOTE_COUNT; i++) {
-    buffer_[IDX_BUFFER_CHANNEL + MIDI_NOTE_SIZE*i] = maskChannel(channel);
+    buffer_[IDX_BUFFER_CHANNEL + MIDI_NOTE_SIZE*i] = maskChannelNoteOn(channel);
     buffer_[IDX_BUFFER_NOTE + MIDI_NOTE_SIZE*i] = maskNote(note->value[i]);
     buffer_[IDX_BUFFER_VELOCITY + MIDI_NOTE_SIZE*i] = 0;
   }
 
   int send_size = MIDI_HEADER_SIZE + MIDI_NOTE_SIZE * note->size;
   if (send_size > MIDI_BUFFER_LENGTH) send_size = MIDI_BUFFER_LENGTH;
+  velocity_ = 0;
   notify(send_size);
 }
 
@@ -117,11 +119,11 @@ void BleMidi::notify(int size) {
 
 void BleMidi::noteOff(uint8_t channel, uint8_t note) {
     if (!is_connected) return;
-    buffer_[IDX_BUFFER_CHANNEL] = maskChannel(channel);
+    buffer_[IDX_BUFFER_CHANNEL] = maskChannelNoteOn(channel);
     buffer_[IDX_BUFFER_NOTE] = maskNote(note);
     buffer_[IDX_BUFFER_VELOCITY] = 0;
-
-    notify();
+    velocity_ = 0;
+    notify(NOTE_ON_1_NOTE);
 }
 
 
@@ -129,4 +131,17 @@ void BleMidi::notify() {
     if (!is_connected) return;
     characteristic_->setValue(buffer_, MIDI_BUFFER_LENGTH);
     characteristic_->notify();
+}
+
+bool BleMidi::fadeOut(uint8_t channel) {
+  if (velocity_ == 0) return true;
+
+  velocity_ -= 4;
+  buffer_[IDX_BUFFER_CHANNEL] = maskChannelContorlChange(channel);
+  buffer_[IDX_BUFFER_CONTROL] = CONTROL_NO_EXPRESSION;
+  buffer_[IDX_BUFFER_CONTROL_DATA] = velocity_;
+
+  notify(CONTRLO_CHANGE_LENGTH);
+
+  return velocity_ == 0;
 }

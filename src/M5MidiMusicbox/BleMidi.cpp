@@ -136,7 +136,9 @@ void BleMidi::notify() {
 bool BleMidi::fadeOut(uint8_t channel) {
   if (velocity_ == 0) return true;
 
-  velocity_ -= 4;
+  if (velocity_ > FADEOUT_SIZE) velocity_ -= FADEOUT_SIZE;
+  else velocity_ = 0;
+
   buffer_[IDX_BUFFER_CHANNEL] = maskChannelContorlChange(channel);
   buffer_[IDX_BUFFER_CONTROL] = CONTROL_NO_EXPRESSION;
   buffer_[IDX_BUFFER_CONTROL_DATA] = velocity_;

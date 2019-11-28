@@ -21,10 +21,11 @@
 #define MIDI_BUFFER_LENGTH          (9)
 #define MIDI_NOTE_SIZE              (4)
 #define MIDI_HEADER_SIZE            (1)
-#define DEFAULT_NOTE_ON_VELOCITY    (64)
+#define DEFAULT_NOTE_ON_VELOCITY    (120)
 #define CONTROL_NO_EXPRESSION       (11)
 #define CONTRLO_CHANGE_LENGTH       (5)
 #define NOTE_ON_1_NOTE              (5)
+#define FADEOUT_SIZE                (6)
 
 typedef void (*ConnectionCallback_t)(bool);
 

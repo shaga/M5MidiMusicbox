@@ -43,7 +43,7 @@ static const MusicInfo_t Musics[] {
 // 演奏曲数
 static const int MusicCount = 3;
 
-static const int AutoNoteOffTicks = 150 / portTICK_RATE_MS;
+static const int AutoNoteOffTicks = 100 / portTICK_RATE_MS;
 
 volatile bool isNoteOn = false;
 
@@ -66,7 +66,7 @@ static void taskFadeOut(void *params) {
     portBASE_TYPE res = xQueueReceive(handleQueueFadeOut, &v, 10 / portTICK_PERIOD_MS);
     if (res != pdTRUE) continue;
     if (xSemaphoreTake(handleSemNoteOff, 10 / portTICK_RATE_MS) == pdTRUE) {
-      if (ble_midi.fadeOut(1)) {
+      if (isNoteOn && ble_midi.fadeOut(1)) {
         const MusicInfo_t* current = &Musics[selected_music_idx];
         noteOffLast(current);
         xTimerStop(handleTimerNoteOff, 0);
@@ -77,7 +77,6 @@ static void taskFadeOut(void *params) {
 }
 
 static void timerNoteOff(TimerHandle_t handle) {
-    portBASE_TYPE HPTaskAwoken = pdFALSE;
     uint32_t v = 0;
     xQueueSend(handleQueueFadeOut, &v, 10 / portTICK_RATE_MS);
 //

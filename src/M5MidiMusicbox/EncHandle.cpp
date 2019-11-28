@@ -46,7 +46,7 @@ void EncHandle::begin(QueueHandle_t queue, bool to_resume) {
     // Set the maximum and minimum limit values to watch
     pcnt_config.counter_h_lim = kLimitValue;
     pcnt_config.counter_l_lim = 0;
-    pcnt_isr_handle_t isr_handle;
+
     /* Initialize PCNT unit */
     pcnt_unit_config(&pcnt_config);
 

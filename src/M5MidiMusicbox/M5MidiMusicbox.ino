@@ -43,7 +43,7 @@ static const MusicInfo_t Musics[] {
 // 演奏曲数
 static const int MusicCount = 3;
 
-static const int AutoNoteOffTicks = 100 / portTICK_RATE_MS;
+static const int AutoNoteOffTicks = 50 / portTICK_RATE_MS;
 
 volatile bool isNoteOn = false;
 

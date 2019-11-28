@@ -25,7 +25,7 @@
 #define CONTROL_NO_EXPRESSION       (11)
 #define CONTRLO_CHANGE_LENGTH       (5)
 #define NOTE_ON_1_NOTE              (5)
-#define FADEOUT_SIZE                (6)
+#define FADEOUT_SIZE                (12)
 
 typedef void (*ConnectionCallback_t)(bool);
 

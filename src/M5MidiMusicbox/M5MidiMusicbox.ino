@@ -4,13 +4,40 @@
 #include "freertos/queue.h"
 #include "freertos/timers.h"
 #include "freertos/semphr.h"
+#include "driver/adc.h"
 #include "PianoCat.h"
 #include "Chocho.h"
 #include "TwinkleLittleStar.h"
 
 // エンコーダピン番号
-static const int PinEncA = 22;
-static const int PinEncB = 21;
+static const int PinEncA = 13;
+static const int PinEncB = 5;
+
+enum ESpeed {
+  kSpdFast,
+  kSpdSlow,
+  kSpdNormal2Fast,
+  kSpdNormal2Slow,  
+};
+
+// 演奏曲配列
+static const MusicInfo_t Musics[] {
+  PianoCatInfo,         // 猫踏んじゃった
+  ChochoInfo,           // ちょうちょ
+  TwinkleLitteStarInfo, // きらきら星
+};
+
+// 演奏曲数
+static const int MusicCount = 3;
+
+static const int AutoNoteOffTicks = 50 / portTICK_RATE_MS;
+
+static const char kStrSpdNormal[] = "Normal";
+static const char kStrSpdFast[] = "Fast";
+static const char kStrSpdSlow[] = "Slow";
+
+static const char kStrEnable[] = "Enable";
+static const char kStrDisable[] = "Disable";
 
 // エンコーダ利用クラス
 EncHandle encoderHandle(PinEncA, PinEncB);
@@ -33,19 +60,27 @@ volatile int play_len = 0;
 // 演奏曲
 volatile int selected_music_idx = -1;
 
-// 演奏曲配列
-static const MusicInfo_t Musics[] {
-  PianoCatInfo,         // 猫踏んじゃった
-  ChochoInfo,           // ちょうちょ
-  TwinkleLitteStarInfo, // きらきら星
-};
-
-// 演奏曲数
-static const int MusicCount = 3;
-
-static const int AutoNoteOffTicks = 50 / portTICK_RATE_MS;
-
 volatile bool isNoteOn = false;
+
+volatile int speed = kSpdNormal2Fast;
+
+bool enableVibra = false;
+
+static inline const char* getStrSpd() {
+  if (speed == kSpdFast) return kStrSpdFast;
+  if (speed == kSpdSlow) return kStrSpdSlow;
+  return kStrSpdNormal;
+}
+
+static inline int getSpeed() {
+  if (speed == kSpdFast) return 1;
+  if (speed == kSpdSlow) return 4;
+  return 2;
+}
+
+static inline const char* getStrVibra() {
+  return enableVibra ? kStrEnable : kStrDisable;
+}
 
 // 最終ノートオフ
 static void noteOffLast(const MusicInfo_t *music) {
@@ -133,7 +168,7 @@ static void playMusic(void* parameter) {
         if (play_pos < selected->length) {
             if (xSemaphoreTake(handleSemNoteOff, 100 / portTICK_RATE_MS) == pdTRUE) {
               ble_midi.noteOn(1, &selected->data[play_pos]);
-              play_len = selected->data[play_pos].length - 1;
+              play_len = (selected->data[play_pos].length - 1) * getSpeed();
               isNoteOn = true;
               xSemaphoreGive(handleSemNoteOff);
               xTimerStart(handleTimerNoteOff, 0);
@@ -148,34 +183,79 @@ static void playMusic(void* parameter) {
   }
 }
 
+static void displayState() {
+  M5.Lcd.fillScreen(TFT_BLACK);
+  M5.Lcd.setCursor(5, 5);
+  M5.Lcd.printf("Speed: %s\n", getStrSpd());
+  M5.Lcd.setCursor(5, 25);
+  M5.Lcd.printf("Vibra: %s\n", getStrVibra());
+  M5.Lcd.setCursor(5, 45);
+  M5.Lcd.printf("Title: %s", Musics[selected_music_idx].name);
+
+  M5.Lcd.setCursor(40, 221);
+  M5.Lcd.printf("SPEED");
+  M5.Lcd.setCursor(130, 221);
+  M5.Lcd.printf("VIBRA");
+  M5.Lcd.setCursor(225, 221);
+  M5.Lcd.printf("TITLE");
+}
+
 // 曲の変更
-static void changeMusic(int next) {
-  if (next < 0 || MusicCount <= next) return;
-  if (selected_music_idx == next) return;
+static void changeMusic() {
 
   encoderHandle.pause();
   if (xTimerIsTimerActive(handleTimerNoteOff) != pdFALSE) xTimerStop(handleTimerNoteOff, 0); 
-  const MusicInfo_t *current = &Musics[selected_music_idx];
-  noteOffLast(current);
-  selected_music_idx = next;
+  if (0 <= selected_music_idx && selected_music_idx < MusicCount) {
+    const MusicInfo_t *current = &Musics[selected_music_idx];
+    noteOffLast(current);
+  }
+  selected_music_idx = (selected_music_idx + 1) % MusicCount;
   play_pos = -1;
   play_len = 0;
   M5.Lcd.fillScreen(TFT_BLACK);
-  M5.Lcd.setCursor(5, 5);
-  M5.Lcd.printf(Musics[selected_music_idx].name);
+  displayState();
+//  M5.Lcd.setCursor(5, 5);
+//  M5.Lcd.printf(Musics[selected_music_idx].name);
+//
+//  switch (next) {
+//    case 0:
+//      M5.Lcd.fillRect(40, 220, 50, 20, 0xFFFFFF);
+//      break;
+//    case 1:
+//      M5.Lcd.fillRect(135, 220, 50, 20, 0xFFFFFF);
+//      break;
+//    case 2:
+//      M5.Lcd.fillRect(230, 220, 50, 20, 0xFFFFFF);
+//      break;
+//  }
+  encoderHandle.resume();
+}
 
-  switch (next) {
-    case 0:
-      M5.Lcd.fillRect(40, 220, 50, 20, 0xFFFFFF);
+static void changeSpeed() {
+  switch (speed) {
+    case kSpdNormal2Fast:
+      speed = kSpdFast;
       break;
-    case 1:
-      M5.Lcd.fillRect(135, 220, 50, 20, 0xFFFFFF);
+    case kSpdNormal2Slow:
+      speed = kSpdSlow;
       break;
-    case 2:
-      M5.Lcd.fillRect(230, 220, 50, 20, 0xFFFFFF);
+    case kSpdFast:
+      speed = kSpdNormal2Slow;
+      break;
+    case kSpdSlow:
+      speed = kSpdNormal2Fast;
+      break;
+    default:
       break;
   }
-  encoderHandle.resume();
+
+  displayState();
+}
+
+static void changeVibra() {
+  enableVibra = ble_midi.changeVibra();
+
+  displayState();
 }
 
 // BLE接続完了イベント
@@ -183,8 +263,11 @@ static void onConnectionChanged(bool is_connected) {
   if (is_connected) {
     play_pos = -1;
     play_len = 0;
-    //M5.Lcd.fillScreen(TFT_BLACK);
-    changeMusic(0);
+    speed = kSpdNormal2Fast;
+    enableVibra = false;
+    selected_music_idx = 0;
+    enableVibra = ble_midi.isEnableVibra();
+    displayState();
     encoderHandle.resume();
   } else {
     showInitMessage();
@@ -192,6 +275,10 @@ static void onConnectionChanged(bool is_connected) {
   }
 }
 
+void initBatteryMonitor() {
+  adc1_config_width(ADC_WIDTH_BIT_12);
+  adc1_config_channel_atten(ADC_CHANNEL_6, ADC_ATTEN_DB_6)
+}
 
 void setup() {
   Serial.begin(115200);
@@ -200,12 +287,12 @@ void setup() {
   initQueue();
   // initialize M5Stack
   M5.begin();
-  M5.Lcd.setTextSize(3);
+  M5.Lcd.setTextSize(2);
   M5.Lcd.fillScreen(TFT_BLACK);
   M5.Lcd.setTextColor(TFT_WHITE);
   M5.Lcd.setTextWrap(true);
   showInitMessage();
-
+  
   ble_midi.registerCallback(onConnectionChanged);
   ble_midi.begin();
 
@@ -220,11 +307,11 @@ void loop() {
   if (!ble_midi.isConnected()) return;
   M5.update();
   if (M5.BtnA.wasPressed()) {
-    changeMusic(0);
+    changeSpeed();
   } else if (M5.BtnB.wasPressed()) {
-    changeMusic(1);
+    changeVibra();
   } else if (M5.BtnC.wasPressed()) {
-    changeMusic(2);
+    changeMusic();
   }
 
   

@@ -25,7 +25,8 @@
 #define CONTROL_NO_EXPRESSION       (11)
 #define CONTRLO_CHANGE_LENGTH       (5)
 #define NOTE_ON_1_NOTE              (5)
-#define FADEOUT_SIZE                (12)
+#define FADEOUT_SIZE_DISABLE        (12)
+#define FADEOUT_SIZE_ENABLE         (3)
 
 typedef void (*ConnectionCallback_t)(bool);
 
@@ -43,6 +44,8 @@ public:
     void noteOn(uint8_t channel, const NoteData_t* note);
     void noteOff(uint8_t channel, const NoteData_t* note);
     bool fadeOut(uint8_t channel);
+    bool changeVibra();
+    bool isEnableVibra();
     
 private:
     uint8_t maskChannelNoteOn(uint8_t channel) { return (channel & 0x0f) | 0x90; }
@@ -55,6 +58,7 @@ private:
     BLECharacteristic *characteristic_;
     uint8_t buffer_[MIDI_BUFFER_LENGTH] = {0x80, 0x80, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00};
     uint8_t velocity_;
+    uint8_t fadeout_size_;
 };
 
 #endif //__BLE_MIDI_H__

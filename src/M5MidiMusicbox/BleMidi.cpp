@@ -29,6 +29,7 @@ BleMidi::BleMidi() {
     characteristic_ = NULL;
     connection_callback = NULL;
     velocity_ = 0;
+    fadeout_size_ = FADEOUT_SIZE_DISABLE;
 }
 
 void BleMidi::registerCallback(ConnectionCallback_t callback) {
@@ -136,7 +137,7 @@ void BleMidi::notify() {
 bool BleMidi::fadeOut(uint8_t channel) {
   if (velocity_ == 0) return true;
 
-  if (velocity_ > FADEOUT_SIZE) velocity_ -= FADEOUT_SIZE;
+  if (velocity_ > fadeout_size_) velocity_ -= fadeout_size_;
   else velocity_ = 0;
 
   buffer_[IDX_BUFFER_CHANNEL] = maskChannelContorlChange(channel);
@@ -146,4 +147,13 @@ bool BleMidi::fadeOut(uint8_t channel) {
   notify(CONTRLO_CHANGE_LENGTH);
 
   return velocity_ == 0;
+}
+
+bool BleMidi::changeVibra() {
+  fadeout_size_ = fadeout_size_ != FADEOUT_SIZE_ENABLE ? FADEOUT_SIZE_ENABLE : FADEOUT_SIZE_DISABLE;
+  return fadeout_size_ == FADEOUT_SIZE_ENABLE;
+}
+
+bool BleMidi::isEnableVibra() {
+  return fadeout_size_ == FADEOUT_SIZE_ENABLE;
 }
